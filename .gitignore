@@ -1,0 +1,72 @@
+# ==========================================
+# 1. Output Unduhan Gambar & Berkas ZIP (Scraper)
+# ==========================================
+/downloaded-images/
+*.zip
+downloaded-images.zip
+bloom-assets.zip
+bloom-ai-assets.zip
+
+# ==========================================
+# 2. Dependensi Node.js
+# ==========================================
+node_modules/
+jspm_packages/
+.pnpm-store/
+
+# ==========================================
+# 3. Environment Variables & Secret Keys
+# ==========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ==========================================
+# 4. Folder Build & Output Deploy (Vercel & Netlify)
+# ==========================================
+.vercel/
+.netlify/
+/dist/
+/build/
+/.out/
+
+# ==========================================
+# 5. Cache Puppeteer & Chromium
+# ==========================================
+.cache/
+.cache/puppeteer/
+
+# ==========================================
+# 6. Log & Debugging
+# ==========================================
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# 7. File Sistem Operasi & Editor (OS & IDE)
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# File IDE / Code Editor
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

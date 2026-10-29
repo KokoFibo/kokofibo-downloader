@@ -1,0 +1,17 @@
+{
+  "name": "puppeteer-image-scraper",
+  "version": "1.0.0",
+  "description": "",
+  "main": "scraper.mjs",
+  "scripts": {
+    "start": "node scraper.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "jszip": "^3.10.2",
+    "puppeteer": "^25.16.0"
+  }
+}
