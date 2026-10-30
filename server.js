@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
 import JSZip from "jszip";
+import cors from "cors";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,20 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 let isPuppeteerSession = false;
+
+// Gunakan cors middleware
+app.use(
+  cors({
+    origin: "*", // Atau 'https://downloader.kokofibo.com'
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+    ],
+  }),
+);
 
 // Function untuk membersihkan folder cache
 async function clearDownloadFolder() {
