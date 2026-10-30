@@ -116,7 +116,7 @@ app.post("/api/scrape-links", async (req, res) => {
     // Tambahkan timeout 60000ms (60 detik) dan maxBuffer 10MB
     exec(
       `node scraper.mjs "${trimmedInput}"`,
-      { timeout: 60000, maxBuffer: 1024 * 1024 * 10 },
+      { timeout: 120000, maxBuffer: 1024 * 1024 * 50 },
       (error, stdout, stderr) => {
         if (error) {
           console.error(`❌ Exec Error:`, error.message);
