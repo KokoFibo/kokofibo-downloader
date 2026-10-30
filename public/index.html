@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kokofibo Universal AI Image Downloader</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- JSZip CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                primary: "#1a1c1e" /* Dark Slate */,
+                secondary: "#8c7851" /* Wood & Tea */,
+                accent: "#d4af37" /* Muted Gold */,
+                surface: "#fcfaf7" /* Antique Paper */,
+                card: "#ffffff",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+      body {
+        font-family: "Plus Jakarta Sans", sans-serif;
+        background-color: #fcfaf7;
+        color: #1a1c1e;
+      }
+
+      .font-mono-code {
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      /* Custom Scrollbars */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(140, 120, 81, 0.05);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(140, 120, 81, 0.25);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #8c7851;
+      }
+
+      .custom-shadow {
+        box-shadow:
+          0 10px 30px -5px rgba(26, 28, 30, 0.05),
+          0 4px 12px -2px rgba(140, 120, 81, 0.08);
+      }
+    </style>
+  </head>
+  <body
+    class="min-h-screen py-8 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-between relative"
+  >
+    <!-- Processing Modal Overlay -->
+    <div
+      id="loadingOverlay"
+      class="fixed inset-0 bg-brand-primary/60 backdrop-blur-sm z-50 hidden flex flex-col items-center justify-center p-4 transition-opacity duration-300"
+    >
+      <div
+        class="bg-white rounded-2xl p-8 max-w-sm w-full text-center space-y-4 shadow-2xl border border-brand-secondary/20"
+      >
+        <div class="relative w-16 h-16 mx-auto">
+          <!-- Outer Spinning Ring -->
+          <div
+            class="absolute inset-0 border-4 border-brand-secondary/20 border-t-brand-secondary rounded-full animate-spin"
+          ></div>
+          <!-- Inner Accent Pulse -->
+          <div
+            class="absolute inset-2 border-4 border-brand-accent/20 border-b-brand-accent rounded-full animate-spin [animation-duration:1.5s]"
+          ></div>
+        </div>
+        <div>
+          <h3 id="loadingTitle" class="text-base font-bold text-brand-primary">
+            Sedang Memproses...
+          </h3>
+          <p id="loadingSubtitle" class="text-xs text-brand-secondary mt-1">
+            Mohon tunggu, sedang menyiapkan gambar.
+          </p>
+        </div>
+        <div class="w-full bg-brand-surface rounded-full h-1.5 overflow-hidden">
+          <div class="bg-brand-secondary h-full animate-pulse w-full"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="max-w-4xl w-full space-y-6">
+      <!-- Header Section -->
+      <header class="text-center space-y-2">
+        <div
+          class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-accent/10 border border-brand-accent/30 text-amber-800 text-xs font-semibold tracking-wide uppercase"
+        >
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+            <path
+              d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"
+            />
+          </svg>
+          KOKOFIBO ENGINE ENABLED
+        </div>
+        <h1
+          class="text-3xl sm:text-4xl font-bold tracking-tight text-brand-primary"
+        >
+          Kokofibo Universal AI Image Downloader
+        </h1>
+        <p class="text-brand-secondary text-sm sm:text-base max-w-xl mx-auto">
+          Tempelkan URL website target Anda atau teks Markdown. Sistem akan
+          mengekstrak dan menampilkan pratinjau gambar siap unduh.
+        </p>
+      </header>
+
+      <!-- Input Card -->
+      <div
+        class="bg-brand-card rounded-2xl p-6 border border-brand-secondary/20 custom-shadow space-y-5"
+      >
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label
+              for="promptInput"
+              class="block text-sm font-semibold text-brand-primary"
+            >
+              URL Website Target / Teks Katalog Markdown:
+            </label>
+            <button
+              onclick="fillSampleText()"
+              class="text-xs text-brand-secondary hover:text-brand-primary underline transition-colors"
+            >
+              + Isi Contoh URL
+            </button>
+          </div>
+          <textarea
+            id="promptInput"
+            rows="3"
+            class="w-full p-4 text-sm rounded-xl border border-brand-secondary/30 bg-brand-surface focus:outline-none focus:ring-2 focus:ring-brand-secondary/50 focus:border-brand-secondary transition-all resize-y placeholder:text-gray-400"
+            placeholder="Tempelkan URL website atau teks Markdown di sini...&#10;Contoh: https://unsplash.com"
+          ></textarea>
+        </div>
+
+        <!-- Control Bar -->
+        <div class="flex justify-end pt-1 border-t border-brand-secondary/10">
+          <button
+            id="parseBtn"
+            onclick="handleScrapeProcess()"
+            class="w-full sm:w-auto bg-brand-primary hover:bg-brand-secondary text-brand-surface font-semibold py-3 px-6 rounded-xl transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2 text-sm"
+          >
+            <span id="parseBtnIcon">✨</span>
+            <span id="parseBtnText">Scrape & Preview Gambar</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Preview Grid Section -->
+      <div id="previewSection" class="hidden space-y-4">
+        <div
+          class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-brand-surface p-4 rounded-xl border border-brand-secondary/20"
+        >
+          <!-- Header Interaktif Klik Teks / Checkbox -->
+          <div
+            onclick="toggleSelectAllFromHeader()"
+            class="flex items-center gap-3 cursor-pointer group select-none"
+          >
+            <input
+              type="checkbox"
+              id="selectAllCheckbox"
+              checked
+              onclick="
+                event.stopPropagation();
+                toggleSelectAll(this.checked);
+              "
+              class="w-4 h-4 accent-brand-secondary rounded cursor-pointer"
+            />
+            <span
+              class="text-sm font-semibold text-brand-primary group-hover:text-brand-secondary transition-colors"
+            >
+              Daftar Gambar Ditemukan (<span id="selectedCount">0</span>/<span
+                id="totalCount"
+                >0</span
+              >)
+            </span>
+          </div>
+
+          <!-- Tombol Download Selected ZIP di Sebelah Kanan -->
+          <button
+            id="downloadSelectedBtn"
+            onclick="downloadSelected()"
+            class="bg-brand-secondary hover:bg-amber-900 text-white font-medium text-xs py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm w-full sm:w-auto"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+              />
+            </svg>
+            <span id="downloadBtnText">Download Selected Images (.ZIP)</span>
+          </button>
+        </div>
+
+        <!-- Thumbnail Cards Grid -->
+        <div
+          id="thumbnailGrid"
+          class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"
+        >
+          <!-- Dynamic Cards Rendered Here -->
+        </div>
+      </div>
+
+      <!-- Console Log Terminal -->
+      <div
+        class="bg-brand-primary rounded-2xl border border-brand-primary/20 overflow-hidden shadow-lg"
+      >
+        <div
+          class="bg-black/30 px-4 py-2.5 flex items-center justify-between border-b border-white/10"
+        >
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
+            <span
+              class="w-3 h-3 rounded-full bg-yellow-500 inline-block"
+            ></span>
+            <span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
+            <span class="text-xs font-mono-code text-gray-400 ml-2"
+              >system.log</span
+            >
+          </div>
+          <button
+            onclick="clearLogs()"
+            class="text-[11px] font-mono-code text-gray-400 hover:text-white transition-colors"
+          >
+            Clear Console
+          </button>
+        </div>
+        <div
+          id="logConsole"
+          class="p-4 font-mono-code text-xs text-gray-300 h-44 overflow-y-auto space-y-1.5 leading-relaxed"
+        >
+          <div class="text-gray-500">
+            [System Ready] Kokofibo Universal AI Image Downloader Siap
+            Digunakan...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Section -->
+    <footer class="mt-12 text-center text-xs text-brand-secondary/80 space-y-1">
+      <p class="font-medium">
+        Designed by
+        <a
+          href="https://kokofibo.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-brand-primary hover:text-brand-secondary font-bold underline transition-colors"
+          >Kokofibo.com</a
+        >
+      </p>
+      <p>&copy; 2026 Kokofibo Web Solution. All rights reserved.</p>
+    </footer>
+
+    <script>
+      let currentDetectedImages = [];
+
+      // Loading Indicator Toggle Helper
+      function showLoading(title, subtitle) {
+        document.getElementById("loadingTitle").innerText = title;
+        document.getElementById("loadingSubtitle").innerText = subtitle;
+        document.getElementById("loadingOverlay").classList.remove("hidden");
+      }
+
+      function hideLoading() {
+        document.getElementById("loadingOverlay").classList.add("hidden");
+      }
+
+      // Logger Utility
+      function log(msg, type = "info") {
+        const consoleEl = document.getElementById("logConsole");
+        const entry = document.createElement("div");
+        const time = new Date().toLocaleTimeString("id-ID", { hour12: false });
+
+        let badgeColor = "text-blue-400";
+        if (type === "success") badgeColor = "text-green-400";
+        if (type === "ai") badgeColor = "text-amber-300";
+        if (type === "error") badgeColor = "text-red-400";
+
+        entry.innerHTML = `<span class="text-gray-500">[${time}]</span> <span class="${badgeColor}">${msg}</span>`;
+        consoleEl.appendChild(entry);
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+      }
+
+      function clearLogs() {
+        document.getElementById("logConsole").innerHTML =
+          '<div class="text-gray-500">[System Reset] Console dibersihkan.</div>';
+      }
+
+      function fillSampleText() {
+        document.getElementById("promptInput").value = "https://unsplash.com";
+        log("Contoh URL berhasil dimasukkan.", "info");
+      }
+
+      function getFilenameFromUrl(url, index) {
+        try {
+          const parsedUrl = new URL(url);
+          let pathname = parsedUrl.pathname;
+          let filename = pathname.split("/").pop();
+          if (!filename || !filename.includes(".")) {
+            filename = `image_${String(index + 1).padStart(3, "0")}.jpg`;
+          } else {
+            filename = filename.split("?")[0];
+          }
+          return filename;
+        } catch (e) {
+          return `image_${String(index + 1).padStart(3, "0")}.jpg`;
+        }
+      }
+
+      // Process Scrape ke Backend Puppeteer
+      async function handleScrapeProcess() {
+        const parseBtn = document.getElementById("parseBtn");
+        const parseBtnText = document.getElementById("parseBtnText");
+        const parseBtnIcon = document.getElementById("parseBtnIcon");
+        const inputUrl = document.getElementById("promptInput").value.trim();
+
+        if (!inputUrl) {
+          log(
+            "Silakan masukkan URL website atau teks terlebih dahulu.",
+            "error",
+          );
+          return;
+        }
+
+        parseBtn.disabled = true;
+        parseBtn.classList.add("opacity-75");
+        parseBtnText.innerText = "Menjalankan Scraper...";
+        parseBtnIcon.innerHTML = `<svg class="w-4 h-4 animate-spin inline-block" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+
+        showLoading(
+          "Sedang Memproses...",
+          "Sistem sedang mengekstrak seluruh gambar dari target.",
+        );
+
+        log(`[Client] Mengirim permintaan scrape ke server...`, "ai");
+
+        try {
+          const response = await fetch("/api/scrape-links", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: inputUrl }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            log(
+              `[Server] Berhasil menemukan ${data.imageUrls.length} gambar unik!`,
+              "success",
+            );
+
+            currentDetectedImages = data.imageUrls.map((url, idx) => ({
+              id: "img_" + (idx + 1),
+              name: getFilenameFromUrl(url, idx),
+              url: url,
+              originalIndex: idx,
+              selected: true,
+            }));
+
+            renderPreviewGrid();
+          } else {
+            const errData = await response.json();
+            throw new Error(
+              errData.error || "Gagal melakukan scraping pada server.",
+            );
+          }
+        } catch (error) {
+          log(`❌ Error: ${error.message}`, "error");
+        } finally {
+          hideLoading();
+          parseBtn.disabled = false;
+          parseBtn.classList.remove("opacity-75");
+          parseBtnText.innerText = "Scrape & Preview Gambar";
+          parseBtnIcon.innerText = "✨";
+        }
+      }
+
+      // Render Preview Grid
+      function renderPreviewGrid() {
+        const section = document.getElementById("previewSection");
+        const grid = document.getElementById("thumbnailGrid");
+
+        if (currentDetectedImages.length === 0) {
+          section.classList.add("hidden");
+          grid.innerHTML = "";
+          return;
+        }
+
+        section.classList.remove("hidden");
+        grid.innerHTML = "";
+
+        currentDetectedImages.forEach((item, index) => {
+          const card = document.createElement("div");
+          card.className = `relative group bg-white border ${item.selected ? "border-brand-secondary ring-2 ring-brand-secondary/30" : "border-gray-200"} rounded-xl overflow-hidden shadow-sm transition-all flex flex-col cursor-pointer select-none hover:shadow-md`;
+
+          // Klik pada Card untuk Toggle Pilihan Gambar
+          card.onclick = () => toggleCardSelect(index);
+
+          card.innerHTML = `
+          <div class="relative h-32 bg-gray-100 overflow-hidden">
+            <img src="${item.url}" alt="${item.name}" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" onerror="this.src='https://placehold.co/400x300/fcfaf7/1a1c1e?text=Image+Load+Error'">
+            <div class="absolute top-2 left-2">
+              <input type="checkbox" ${item.selected ? "checked" : ""} onclick="event.stopPropagation(); toggleCardSelect(${index})" class="w-4 h-4 accent-brand-secondary rounded cursor-pointer shadow">
+            </div>
+            <!-- Prevent Propagation pada tombol Download Single agar tidak men-toggle kartu -->
+            <button onclick="event.stopPropagation(); downloadSingleDirect('${item.url}', '${item.name}', ${index})" title="Unduh gambar ini" class="absolute bottom-2 right-2 bg-brand-primary/80 hover:bg-brand-primary text-white p-1.5 rounded-lg opacity-90 backdrop-blur-sm transition-opacity shadow flex items-center justify-center">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            </button>
+          </div>
+          <div class="p-2.5 flex-1 flex flex-col justify-between">
+            <p class="text-xs font-medium text-brand-primary truncate" title="${item.name}">${item.name}</p>
+            <span class="text-[10px] text-brand-secondary/80 font-mono-code mt-1 inline-block">${item.id}</span>
+          </div>
+        `;
+          grid.appendChild(card);
+        });
+
+        updateCounts();
+      }
+
+      // Toggle Pilihan per Kartu
+      function toggleCardSelect(index) {
+        currentDetectedImages[index].selected =
+          !currentDetectedImages[index].selected;
+        renderPreviewGrid();
+      }
+
+      // Toggle Pilihan dari Klik Header Teks "Daftar Gambar Ditemukan"
+      function toggleSelectAllFromHeader() {
+        const allSelected = currentDetectedImages.every((img) => img.selected);
+        toggleSelectAll(!allSelected);
+      }
+
+      function toggleSelectAll(isChecked) {
+        currentDetectedImages.forEach((img) => (img.selected = isChecked));
+        renderPreviewGrid();
+      }
+
+      function updateCounts() {
+        const selected = currentDetectedImages.filter(
+          (img) => img.selected,
+        ).length;
+        document.getElementById("selectedCount").innerText = selected;
+        document.getElementById("totalCount").innerText =
+          currentDetectedImages.length;
+        document.getElementById("selectAllCheckbox").checked =
+          selected === currentDetectedImages.length && selected > 0;
+      }
+
+      // Direct Single Image Download
+      async function downloadSingleDirect(url, filename, index) {
+        try {
+          log(
+            `[Server] Mengunduh file via backend proxy: ${filename}...`,
+            "info",
+          );
+
+          const res = await fetch("/api/download-single", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, name: filename, index }),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error || `HTTP ${res.status}`);
+          }
+
+          const blob = await res.blob();
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(link.href);
+
+          log(`[OK] Berhasil mengunduh ${filename}`, "success");
+        } catch (e) {
+          log(`[Gagal] ${filename} (${e.message})`, "error");
+        }
+      }
+
+      // Bulk Download Selected (.ZIP via Server Proxy)
+      async function downloadSelected() {
+        const selectedImages = currentDetectedImages.filter(
+          (img) => img.selected,
+        );
+        const downloadBtn = document.getElementById("downloadSelectedBtn");
+        const downloadBtnText = document.getElementById("downloadBtnText");
+
+        if (selectedImages.length === 0) {
+          log("Pilih minimal 1 gambar untuk diunduh.", "error");
+          return;
+        }
+
+        downloadBtn.disabled = true;
+        downloadBtn.classList.add("opacity-75");
+        downloadBtnText.innerText = "Mengompresi ZIP...";
+
+        showLoading(
+          "Sedang Mengompresi File...",
+          `Server sedang mengemas ${selectedImages.length} gambar ke berkas ZIP.`,
+        );
+
+        try {
+          log(
+            `[Server] Mengirim ${selectedImages.length} daftar gambar ke backend...`,
+            "ai",
+          );
+
+          const payload = selectedImages.map((img) => ({
+            url: img.url,
+            name: img.name,
+            index: img.originalIndex,
+          }));
+
+          const response = await fetch("/api/download-zip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ images: payload }),
+          });
+
+          if (response.ok) {
+            const blob = await response.blob();
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "downloaded-images.zip";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+
+            log(
+              "🎉 Seluruh gambar terpilih berhasil diunduh dalam berkas ZIP!",
+              "success",
+            );
+          } else {
+            const errData = await response.json();
+            throw new Error(
+              errData.error || "Server gagal membuat berkas ZIP.",
+            );
+          }
+        } catch (err) {
+          log(`Terjadi kesalahan: ${err.message}`, "error");
+        } finally {
+          hideLoading();
+          downloadBtn.disabled = false;
+          downloadBtn.classList.remove("opacity-75");
+          downloadBtnText.innerText = "Download Selected Images (.ZIP)";
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -3,103 +3,133 @@ import path from "node:path";
 import puppeteer from "puppeteer";
 import JSZip from "jszip";
 
-// Konfigurasi Target & Output
-const TARGET_URL = process.argv[2] || "https://unsplash.com"; // URL default jika tidak diisi
+const TARGET_URL = process.argv[2] || "https://pelitahatisuci.org/";
 const OUTPUT_FOLDER = "./downloaded-images";
-const CREATE_ZIP = true; // Set to true jika ingin output berupa file ZIP juga
+const CREATE_ZIP = true;
 
-/**
- * Fungsi untuk melakukan scroll otomatis hingga ke dasar halaman
- * agar gambar lazy-loading termuat sempurna.
- */
 async function autoScroll(page) {
-  await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      let totalHeight = 0;
-      const distance = 300;
-      const timer = setInterval(() => {
-        const scrollHeight = document.body.scrollHeight;
-        window.scrollBy(0, distance);
-        totalHeight += distance;
+  try {
+    await page.evaluate(async () => {
+      await new Promise((resolve) => {
+        let totalHeight = 0;
+        const distance = 300;
+        const timer = setInterval(() => {
+          const scrollHeight = document.body ? document.body.scrollHeight : 0;
+          window.scrollBy(0, distance);
+          totalHeight += distance;
 
-        // Berhenti scroll jika sudah mencapai dasar atau batas max scroll
-        if (totalHeight >= scrollHeight || totalHeight > 5000) {
-          clearInterval(timer);
-          resolve();
-        }
-      }, 150);
+          if (totalHeight >= scrollHeight || totalHeight > 6000) {
+            clearInterval(timer);
+            resolve();
+          }
+        }, 150);
+      });
     });
-  });
+  } catch (err) {
+    // Ignore navigation errors during scroll
+  }
 }
 
 async function runScraper() {
-  console.log(`🚀 Meluncurkan browser Puppeteer...`);
+  console.log(`🚀 Meluncurkan browser Puppeteer untuk target: ${TARGET_URL}`);
+
   const browser = await puppeteer.launch({
-    headless: "new", // Berjalan di background
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    headless: "new",
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-blink-features=AutomationControlled",
+      "--window-size=1920,1080",
+    ],
   });
 
   const page = await browser.newPage();
 
-  // Set User-Agent & Viewport seperti browser desktop sungguhan
+  // Menyamarkan Puppeteer agar terdeteksi sebagai browser Chrome sungguhan
   await page.setUserAgent(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
   );
-  await page.setViewport({ width: 1280, height: 800 });
+  await page.setExtraHTTPHeaders({
+    "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+  });
+  await page.setViewport({ width: 1440, height: 900 });
 
   try {
-    console.log(`🌐 Mengunjungi URL: ${TARGET_URL}`);
+    console.log(`🌐 Mengunjungi URL website...`);
     await page.goto(TARGET_URL, { waitUntil: "networkidle2", timeout: 60000 });
 
-    console.log(
-      `📜 Melakukan auto-scroll untuk memuat gambar (lazy-loading)...`,
-    );
-    await autoScroll(page);
+    await new Promise((r) => setTimeout(r, 2000));
 
-    console.log(`🔍 Mengambil seluruh URL gambar dari DOM...`);
-    const imageUrls = await page.evaluate(() => {
+    console.log(`📜 Auto-scroll untuk memuat seluruh gambar...`);
+    await autoScroll(page);
+    await new Promise((r) => setTimeout(r, 1000));
+
+    console.log(
+      `🔍 Ekstraksi seluruh elemen gambar (termasuk path relatif)...`,
+    );
+
+    // Ekstraksi URL di dalam browser context dan konversi ke Absolute URL
+    const imageUrls = await page.evaluate((baseUrl) => {
       const urls = new Set();
 
-      // 1. Ambil dari tag <img> (src & srcset)
-      document.querySelectorAll("img").forEach((img) => {
-        if (img.src && img.src.startsWith("http")) urls.add(img.src);
-        if (img.dataset.src && img.dataset.src.startsWith("http"))
-          urls.add(img.dataset.src);
+      function addValidUrl(rawUrl) {
+        if (!rawUrl || rawUrl.startsWith("data:")) return;
+        try {
+          // Mengubah path relatif (e.g. /images/a.jpg) menjadi URL penuh
+          const absoluteUrl = new URL(rawUrl, baseUrl).href;
+          if (absoluteUrl.startsWith("http")) {
+            urls.add(absoluteUrl);
+          }
+        } catch (e) {}
+      }
+
+      // 1. Tag <img> (src, data-src, srcset)
+      document.querySelectorAll("img, source").forEach((el) => {
+        addValidUrl(el.getAttribute("src"));
+        addValidUrl(el.getAttribute("data-src"));
+        addValidUrl(el.getAttribute("data-lazy-src"));
+
+        const srcset =
+          el.getAttribute("srcset") || el.getAttribute("data-srcset");
+        if (srcset) {
+          srcset.split(",").forEach((part) => {
+            const clean = part.trim().split(" ")[0];
+            addValidUrl(clean);
+          });
+        }
       });
 
-      // 2. Ambil dari CSS background-image
+      // 2. CSS Background Image
       document.querySelectorAll("*").forEach((el) => {
         const bg = window.getComputedStyle(el).backgroundImage;
         if (bg && bg.startsWith("url(")) {
           const cleanUrl = bg
             .replace(/^url\(['"]?/, "")
             .replace(/['"]?\)$/, "");
-          if (cleanUrl.startsWith("http")) urls.add(cleanUrl);
+          addValidUrl(cleanUrl);
         }
       });
 
       return Array.from(urls);
-    });
+    }, TARGET_URL);
 
+    // Tampilkan log daftar URL yang diekstrak ke stdout agar ditangkap oleh server.js
+    imageUrls.forEach((url) => console.log(`FOUND_URL: ${url}`));
     console.log(`✨ Ditemukan ${imageUrls.length} gambar unik!`);
 
     if (imageUrls.length === 0) {
-      console.log("⚠️ Tidak ada gambar yang berhasil ditemukan.");
+      console.log("⚠️ Tidak ada gambar yang ditemukan.");
       await browser.close();
       return;
     }
 
-    // Buat folder output lokal
     await fs.mkdir(OUTPUT_FOLDER, { recursive: true });
     const zip = CREATE_ZIP ? new JSZip() : null;
-
-    console.log(`⬇️ Memulai proses unduh ke folder '${OUTPUT_FOLDER}'...`);
 
     let count = 0;
     for (let i = 0; i < imageUrls.length; i++) {
       const url = imageUrls[i];
       try {
-        // Ambil nama file asli atau generate nama urut
         const urlObj = new URL(url);
         let ext = path.extname(urlObj.pathname).split("?")[0] || ".jpg";
         if (
@@ -112,42 +142,34 @@ async function runScraper() {
         const filename = `image_${String(i + 1).padStart(3, "0")}${ext}`;
         const filePath = path.join(OUTPUT_FOLDER, filename);
 
-        // Fetch gambar lewat Puppeteer Page Context agar membawa Session/Cookie jika ada
-        const imageBuffer = await page.evaluate(async (imgUrl) => {
-          const res = await fetch(imgUrl);
-          if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-          const buffer = await res.arrayBuffer();
-          return Array.from(new Uint8Array(buffer));
-        }, url);
+        const response = await fetch(url, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0",
+          },
+        });
 
-        const uint8Array = new Uint8Array(imageBuffer);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
-        // Simpan ke folder lokal
-        await fs.writeFile(filePath, uint8Array);
-
-        // Masukkan ke zip jika diaktifkan
-        if (zip) {
-          zip.file(filename, uint8Array);
-        }
+        await fs.writeFile(filePath, buffer);
+        if (zip) zip.file(filename, buffer);
 
         count++;
-        console.log(`  [${count}/${imageUrls.length}] ✅ Saved: ${filename}`);
       } catch (err) {
-        console.log(`  ❌ Gagal mengunduh gambar #${i + 1}: ${err.message}`);
+        // Log penanganan error internal
       }
     }
 
-    // Generate File ZIP jika diaktifkan
     if (CREATE_ZIP && count > 0) {
-      console.log(`📦 Mengompresi file ke 'downloaded-images.zip'...`);
       const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
       await fs.writeFile("downloaded-images.zip", zipBuffer);
-      console.log(`🎉 Berhasil membuat berkas downloaded-images.zip!`);
     }
 
-    console.log(`\n🎉 Selesai! Berhasil mengunduh ${count} gambar.`);
+    console.log(`🎉 Selesai! Berhasil mengunduh ${count} gambar.`);
   } catch (err) {
-    console.error(`❌ Terjadi kesalahan utama:`, err.message);
+    console.error(`❌ Terjadi kesalahan:`, err.message);
   } finally {
     await browser.close();
   }
