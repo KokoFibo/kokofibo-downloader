@@ -3,9 +3,60 @@ import path from "node:path";
 import puppeteer from "puppeteer";
 import JSZip from "jszip";
 
-const TARGET_URL = process.argv[2] || "https://pelitahatisuci.org/";
+const TARGET_URL = process.argv[2];
 const OUTPUT_FOLDER = "./downloaded-images";
 const CREATE_ZIP = true;
+
+if (!targetUrl) {
+  console.error("URL target tidak ditemukan.");
+  process.exit(1);
+}
+
+(async () => {
+  try {
+    const browser = await puppeteer.launch({
+      headless: "new",
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--disable-gpu",
+        "--no-first-run",
+        "--no-zygote",
+        "--single-process",
+      ],
+    });
+
+    const page = await browser.newPage();
+
+    // Set User Agent agar tidak diblokir situs target
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    );
+
+    await page.goto(targetUrl, { waitUntil: "networkidle2", timeout: 30000 });
+
+    // Ekstrak URL Gambar
+    const imageUrls = await page.evaluate(() => {
+      const imgs = Array.from(document.querySelectorAll("img"));
+      return imgs
+        .map((img) => img.src)
+        .filter((src) => src && src.startsWith("http"));
+    });
+
+    // Cetak log khusus untuk ditangkap oleh server.js
+    imageUrls.forEach((url) => {
+      console.log(`FOUND_URL: ${url}`);
+    });
+
+    await browser.close();
+    process.exit(0);
+  } catch (error) {
+    console.error("Error Puppeteer:", error.message);
+    process.exit(1);
+  }
+})();
 
 async function autoScroll(page) {
   try {

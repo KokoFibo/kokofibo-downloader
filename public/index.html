@@ -277,6 +277,7 @@
 
     <script>
       let currentDetectedImages = [];
+      const API_BASE = "https://api-downloader.kokofibo.com";
 
       // Loading Indicator Toggle Helper
       function showLoading(title, subtitle) {
@@ -359,7 +360,7 @@
         log(`[Client] Mengirim permintaan scrape ke server...`, "ai");
 
         try {
-          const response = await fetch("/api/scrape-links", {
+          const response = await fetch(`${API_BASE}/api/scrape-links`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url: inputUrl }),
@@ -478,7 +479,7 @@
             "info",
           );
 
-          const res = await fetch("/api/download-single", {
+          const res = await fetch(`${API_BASE}/api/download-single`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url, name: filename, index }),
@@ -538,7 +539,7 @@
             index: img.originalIndex,
           }));
 
-          const response = await fetch("/api/download-zip", {
+          const response = await fetch(`${API_BASE}/api/download-zip`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ images: payload }),
