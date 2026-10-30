@@ -82,6 +82,7 @@ function getExtensionFromMime(mimeType) {
 }
 
 // 1. Endpoint API Scrape
+// 1. Endpoint API Scrape
 app.post("/api/scrape-links", async (req, res) => {
   const { url } = req.body;
   if (!url || !url.trim())
@@ -111,14 +112,23 @@ app.post("/api/scrape-links", async (req, res) => {
     // Mode Scrape Website (Menggunakan Puppeteer)
     isPuppeteerSession = true;
     console.log(`🌐 Meluncurkan Puppeteer untuk: ${trimmedInput}`);
-    exec(`node scraper.mjs "${trimmedInput}"`, (error, stdout) => {
-      if (error)
-        return res
-          .status(500)
-          .json({ error: "Gagal melakukan scraping pada website." });
-      const detectedUrls = extractUrlsFromStdout(stdout);
-      res.json({ success: true, imageUrls: detectedUrls, isPuppeteer: true });
-    });
+
+    // Tambahkan timeout 60000ms (60 detik) dan maxBuffer 10MB
+    exec(
+      `node scraper.mjs "${trimmedInput}"`,
+      { timeout: 60000, maxBuffer: 1024 * 1024 * 10 },
+      (error, stdout, stderr) => {
+        if (error) {
+          console.error(`❌ Exec Error:`, error.message);
+          if (stderr) console.error(`❌ Exec Stderr:`, stderr);
+          return res
+            .status(500)
+            .json({ error: "Gagal melakukan scraping pada website." });
+        }
+        const detectedUrls = extractUrlsFromStdout(stdout);
+        res.json({ success: true, imageUrls: detectedUrls, isPuppeteer: true });
+      },
+    );
   }
 });
 
